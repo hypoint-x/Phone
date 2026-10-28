@@ -1,1 +1,39 @@
+name: Build iPhone app (.ipa)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack project
+        run: unzip -q QuantEngineiOS.zip
+      - name: Engine smoke test (host)
+        working-directory: QuantEngineiOS
+        run: |
+          cmake -S Core -B build-host -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-host -j4
+          ./build-host/qe_smoke Core/assets
+      - name: Generate Xcode project
+        working-directory: QuantEngineiOS
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build for iPhone (unsigned)
+        working-directory: QuantEngineiOS
+        run: |
+          xcodebuild -project QuantEngine.xcodeproj -scheme QuantEngine -configuration Release -sdk iphoneos -destination generic/platform=iOS -derivedDataPath build-ios CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package unsigned ipa
+        working-directory: QuantEngineiOS
+        run: |
+          mkdir -p Payload
+          cp -R build-ios/Build/Products/Release-iphoneos/QuantEngine.app Payload/
+          zip -qr QuantEngine-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QuantEngine-unsigned-ipa
+          path: QuantEngineiOS/QuantEngine-unsigned.ipa
 
